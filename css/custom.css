@@ -36,3 +36,41 @@ h2 {
     font-size: 22px;
     margin-bottom:30px;
 }
+
+.movimiento .monto {
+    font-weight: bold;
+    white-space: nowrap;
+}
+.movimiento.ingreso .monto {
+    color: #1e7e34;
+}
+.movimiento.gasto .monto {
+    color: #c82333;
+}
+.movimiento .meta {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 4px;
+}
+#filtros {
+    background: #f8f9fa;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+#filtros label {
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+}
+.toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.totales .alert {
+    margin-bottom: 8px;
+    padding: 10px 15px;
+}
+#movimientos {
+    margin-bottom: 30px;
+}
