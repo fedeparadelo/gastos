@@ -881,20 +881,20 @@ function onPlantillasClick(e) {
     ui.renderAccesosRapidos(finanzas.plantillas);
 }
 
+function sincronizarTipoActivo() {
+    radiosTipo.forEach(r => {
+        const label = r.closest('label');
+        if (!label) return;
+        label.classList.toggle('active', r.checked);
+    });
+}
+
 function usarPlantilla(id) {
     const p = finanzas.plantillas.find(x => x.id === id);
     if (!p) return;
 
-    radiosTipo.forEach(r => {
-        const label = r.closest('label');
-        if (r.value === p.tipo) {
-            r.checked = true;
-            if (label) label.classList.add('active');
-        } else {
-            r.checked = false;
-            if (label) label.classList.remove('active');
-        }
-    });
+    radiosTipo.forEach(r => { r.checked = r.value === p.tipo; });
+    sincronizarTipoActivo();
 
     ui.poblarCategorias(inputCategoria, p.tipo);
     inputCategoria.value = p.categoria;
@@ -915,6 +915,7 @@ function onAccesoRapidoClick(e) {
 function eventListeners() {
     document.addEventListener('DOMContentLoaded', () => {
         inputFecha.value = fechaHoy();
+        sincronizarTipoActivo();
         const generados = finanzas.procesarRecurrentes();
         refrescarTodo();
         if (generados > 0) {
@@ -926,6 +927,7 @@ function eventListeners() {
     presupuestosInputs.addEventListener('change', onPresupuestoInput);
 
     radiosTipo.forEach(r => r.addEventListener('change', () => {
+        sincronizarTipoActivo();
         ui.poblarCategorias(inputCategoria, tipoSeleccionado());
     }));
     recTipo.addEventListener('change', () => ui.poblarCategorias(recCategoria, recTipo.value));
