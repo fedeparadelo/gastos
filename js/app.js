@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'gastos:movimientos';
+const STORAGE_KEY_PRESUPUESTOS = 'gastos:presupuestos';
 
 const CATEGORIAS = {
     ingreso: ['Salario', 'Freelance', 'Inversiones', 'Regalo', 'Otros'],
@@ -7,6 +8,7 @@ const CATEGORIAS = {
 
 const TIPOS_VALIDOS = ['ingreso', 'gasto'];
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const NOMBRES_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
 const formulario        = document.getElementById('agregar-movimiento');
 const inputDescripcion  = document.getElementById('descripcion');
@@ -32,6 +34,10 @@ const btnExportar    = document.getElementById('exportar');
 const btnImportar    = document.getElementById('importar');
 const inputImportar  = document.getElementById('importar-file');
 
+const progresoLista        = document.getElementById('progreso-lista');
+const progresoMesLabel     = document.getElementById('progreso-mes-label');
+const presupuestosInputs   = document.getElementById('presupuestos-inputs');
+
 
 function validarMovimiento(m) {
     return m
@@ -51,6 +57,15 @@ function fechaHoy() {
     return new Date().toISOString().slice(0, 10);
 }
 
+function mesActual() {
+    return new Date().toISOString().slice(0, 7);
+}
+
+function nombreMes(mesIso) {
+    const [a, m] = mesIso.split('-');
+    return `${NOMBRES_MESES[Number(m) - 1]} ${a}`;
+}
+
 function formatearMonto(n) {
     return Number(n).toFixed(2);
 }
@@ -59,6 +74,7 @@ function formatearMonto(n) {
 class Finanzas {
     constructor() {
         this.movimientos = this.cargar();
+        this.presupuestos = this.cargarPresupuestos();
     }
 
     cargar() {
@@ -76,6 +92,45 @@ class Finanzas {
 
     guardar() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.movimientos));
+    }
+
+    cargarPresupuestos() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_PRESUPUESTOS);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+            const out = {};
+            for (const cat of CATEGORIAS.gasto) {
+                const v = Number(parsed[cat]);
+                if (v > 0 && isFinite(v)) out[cat] = v;
+            }
+            return out;
+        } catch (err) {
+            console.warn('No se pudo leer presupuestos:', err);
+            return {};
+        }
+    }
+
+    guardarPresupuestos() {
+        localStorage.setItem(STORAGE_KEY_PRESUPUESTOS, JSON.stringify(this.presupuestos));
+    }
+
+    setPresupuesto(categoria, monto) {
+        const n = Number(monto);
+        if (!n || n <= 0 || !isFinite(n)) delete this.presupuestos[categoria];
+        else this.presupuestos[categoria] = n;
+        this.guardarPresupuestos();
+    }
+
+    gastosMesPorCategoria(mes = mesActual()) {
+        const acc = {};
+        for (const m of this.movimientos) {
+            if (m.tipo !== 'gasto') continue;
+            if (!m.fecha.startsWith(mes)) continue;
+            acc[m.categoria] = (acc[m.categoria] || 0) + m.monto;
+        }
+        return acc;
     }
 
     nuevoMovimiento(mov) {
@@ -208,6 +263,75 @@ class UI {
         else cardBalance.classList.add('alert-info');
     }
 
+    renderPresupuestosInputs(presupuestos) {
+        presupuestosInputs.innerHTML = '';
+        for (const cat of CATEGORIAS.gasto) {
+            const row = document.createElement('div');
+            row.className = 'form-row align-items-center mb-2';
+            row.innerHTML = `
+                <label class="col-5 col-form-label col-form-label-sm mb-0">${escapeHtml(cat)}</label>
+                <div class="col-7">
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend"><span class="input-group-text">$</span></div>
+                        <input type="number" min="0" step="0.01" class="form-control presupuesto-input"
+                               data-categoria="${escapeHtml(cat)}"
+                               value="${presupuestos[cat] ? presupuestos[cat] : ''}"
+                               placeholder="sin tope">
+                    </div>
+                </div>
+            `;
+            presupuestosInputs.appendChild(row);
+        }
+    }
+
+    renderProgresoMes({ gastosPorCat, presupuestos, mes }) {
+        progresoMesLabel.textContent = `(${nombreMes(mes)})`;
+        progresoLista.innerHTML = '';
+
+        const categorias = new Set([
+            ...Object.keys(gastosPorCat),
+            ...Object.keys(presupuestos)
+        ]);
+
+        if (categorias.size === 0) {
+            progresoLista.innerHTML = '<p class="small text-muted mb-0">Todavía no cargaste gastos este mes ni configuraste topes.</p>';
+            return;
+        }
+
+        const filas = [...categorias].map(cat => {
+            const gasto = gastosPorCat[cat] || 0;
+            const tope  = presupuestos[cat] || 0;
+            return { cat, gasto, tope, pct: tope > 0 ? (gasto / tope) * 100 : null };
+        }).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
+
+        for (const { cat, gasto, tope, pct } of filas) {
+            const row = document.createElement('div');
+            row.className = 'progreso-row mb-2';
+
+            if (tope > 0) {
+                const clase = pct >= 100 ? 'bg-danger' : pct >= 70 ? 'bg-warning' : 'bg-success';
+                const ancho = Math.min(pct, 100).toFixed(0);
+                row.innerHTML = `
+                    <div class="d-flex justify-content-between small">
+                        <span><strong>${escapeHtml(cat)}</strong></span>
+                        <span>$${formatearMonto(gasto)} / $${formatearMonto(tope)} (${pct.toFixed(0)}%)</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar ${clase}" role="progressbar" style="width: ${ancho}%"></div>
+                    </div>
+                `;
+            } else {
+                row.innerHTML = `
+                    <div class="d-flex justify-content-between small text-muted">
+                        <span><strong>${escapeHtml(cat)}</strong></span>
+                        <span>$${formatearMonto(gasto)} (sin tope)</span>
+                    </div>
+                `;
+            }
+            progresoLista.appendChild(row);
+        }
+    }
+
     limpiarHTML(ul) {
         while (ul.firstChild) ul.removeChild(ul.firstChild);
     }
@@ -242,6 +366,34 @@ function refrescarVista() {
     const filtrados = finanzas.filtrar(leerFiltros());
     ui.renderMovimientos(filtrados);
     ui.actualizarTotales(finanzas.totales(filtrados));
+    refrescarProgreso();
+}
+
+function refrescarProgreso() {
+    const mes = mesActual();
+    ui.renderProgresoMes({
+        gastosPorCat: finanzas.gastosMesPorCategoria(mes),
+        presupuestos: finanzas.presupuestos,
+        mes
+    });
+}
+
+function chequearTope(mov) {
+    if (mov.tipo !== 'gasto') return false;
+    if (!mov.fecha.startsWith(mesActual())) return false;
+    const tope = finanzas.presupuestos[mov.categoria];
+    if (!tope) return false;
+    const gastado = (finanzas.gastosMesPorCategoria()[mov.categoria] || 0);
+    const pct = (gastado / tope) * 100;
+    if (pct >= 100) {
+        ui.imprimirAlerta(`Te pasaste del tope de ${mov.categoria} este mes: $${formatearMonto(gastado)} / $${formatearMonto(tope)}`, 'error');
+        return true;
+    }
+    if (pct >= 90) {
+        ui.imprimirAlerta(`Ojo: ya vas ${pct.toFixed(0)}% del tope de ${mov.categoria} este mes`, 'error');
+        return true;
+    }
+    return false;
 }
 
 function refrescarFiltroCategorias() {
@@ -296,13 +448,14 @@ function agregarMovimiento(e) {
     const mov = { id: nuevoId(), tipo, descripcion, monto, categoria, fecha };
     finanzas.nuevoMovimiento(mov);
 
-    ui.imprimirAlerta('Movimiento agregado');
     refrescarFiltroCategorias();
     refrescarVista();
 
     inputDescripcion.value = '';
     inputMonto.value = '';
     inputFecha.value = fechaHoy();
+
+    chequearTope(mov) || ui.imprimirAlerta('Movimiento agregado');
 }
 
 function eliminarMovimiento(e) {
@@ -364,13 +517,25 @@ function importarJSON(file) {
 }
 
 
+function onPresupuestoInput(e) {
+    const input = e.target;
+    if (!input.classList.contains('presupuesto-input')) return;
+    const cat = input.dataset.categoria;
+    finanzas.setPresupuesto(cat, input.value);
+    refrescarProgreso();
+}
+
 function eventListeners() {
     document.addEventListener('DOMContentLoaded', () => {
         inputFecha.value = fechaHoy();
         ui.poblarCategorias(inputCategoria, tipoSeleccionado());
+        ui.renderPresupuestosInputs(finanzas.presupuestos);
         refrescarFiltroCategorias();
         refrescarVista();
     });
+
+    presupuestosInputs.addEventListener('input', onPresupuestoInput);
+    presupuestosInputs.addEventListener('change', onPresupuestoInput);
 
     radiosTipo.forEach(r => r.addEventListener('change', () => {
         ui.poblarCategorias(inputCategoria, tipoSeleccionado());
