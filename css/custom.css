@@ -123,4 +123,21 @@ h2 {
     opacity: 0.5;
 }
 
+.btn-group-toggle label.btn.btn-outline-danger:not(.active),
+.btn-group-toggle label.btn.btn-outline-success:not(.active) {
+    color: #6c757d;
+    border-color: #ced4da;
+    background-color: #fff;
+}
+.btn-group-toggle label.btn.btn-outline-danger.active {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+}
+.btn-group-toggle label.btn.btn-outline-success.active {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: #fff;
+}
+
 
