@@ -74,3 +74,20 @@ h2 {
 #movimientos {
     margin-bottom: 30px;
 }
+.progreso-row .progress {
+    background-color: #e9ecef;
+}
+.presupuestos-config summary {
+    cursor: pointer;
+    list-style: none;
+}
+.presupuestos-config summary::-webkit-details-marker {
+    display: none;
+}
+.presupuestos-config[open] summary::before {
+    content: '▾ ';
+}
+.presupuestos-config:not([open]) summary::before {
+    content: '▸ ';
+}
+

@@ -65,6 +65,19 @@
                             </div>
                         </div>
 
+                        <div id="progreso-mes" class="mb-3">
+                            <h5 class="text-muted text-uppercase small mb-2">Este mes por categoría <span id="progreso-mes-label" class="text-lowercase"></span></h5>
+                            <div id="progreso-lista"></div>
+                        </div>
+
+                        <details class="presupuestos-config mb-3">
+                            <summary class="btn btn-sm btn-outline-info">Configurar topes mensuales</summary>
+                            <div class="card card-body mt-2">
+                                <p class="small text-muted mb-2">Cuánto querés gastar como máximo por mes en cada categoría. Dejá en blanco o 0 para no tener tope.</p>
+                                <div id="presupuestos-inputs"></div>
+                            </div>
+                        </details>
+
                         <div class="toolbar">
                             <button type="button" id="exportar" class="btn btn-outline-primary btn-sm">Exportar JSON</button>
                             <button type="button" id="importar" class="btn btn-outline-secondary btn-sm">Importar JSON</button>
