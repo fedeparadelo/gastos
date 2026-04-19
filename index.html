@@ -18,6 +18,7 @@
                 <div class="col-md-5">
                     <div class="contenido primario">
                         <h2 class="text-center">Nuevo movimiento</h2>
+                        <div id="accesos-rapidos" class="accesos-rapidos mb-3"></div>
                         <form id="agregar-movimiento" action="#">
                             <div class="form-group">
                                 <label>Tipo:</label>
@@ -75,6 +76,74 @@
                             <div class="card card-body mt-2">
                                 <p class="small text-muted mb-2">Cuánto querés gastar como máximo por mes en cada categoría. Dejá en blanco o 0 para no tener tope.</p>
                                 <div id="presupuestos-inputs"></div>
+                            </div>
+                        </details>
+
+                        <details class="presupuestos-config mb-3">
+                            <summary class="btn btn-sm btn-outline-info">Movimientos fijos (se cargan solos cada mes)</summary>
+                            <div class="card card-body mt-2">
+                                <p class="small text-muted mb-2">Sueldo, alquiler, luz, etc. Se generan automáticamente el día del mes que elijas.</p>
+                                <form id="recurrentes-form" class="form-row mb-3">
+                                    <div class="form-group col-12 col-sm-3">
+                                        <label class="small mb-0" for="rec-tipo">Tipo</label>
+                                        <select id="rec-tipo" class="form-control form-control-sm">
+                                            <option value="gasto">Gasto</option>
+                                            <option value="ingreso">Ingreso</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-12 col-sm-4">
+                                        <label class="small mb-0" for="rec-descripcion">Descripción</label>
+                                        <input type="text" id="rec-descripcion" class="form-control form-control-sm" placeholder="Ej: Alquiler" required>
+                                    </div>
+                                    <div class="form-group col-6 col-sm-2">
+                                        <label class="small mb-0" for="rec-monto">Monto</label>
+                                        <input type="number" id="rec-monto" step="0.01" min="0.01" class="form-control form-control-sm" placeholder="0" required>
+                                    </div>
+                                    <div class="form-group col-6 col-sm-3">
+                                        <label class="small mb-0" for="rec-categoria">Categoría</label>
+                                        <select id="rec-categoria" class="form-control form-control-sm"></select>
+                                    </div>
+                                    <div class="form-group col-12 col-sm-6">
+                                        <label class="small mb-0" for="rec-dia">Día del mes (1-31)</label>
+                                        <input type="number" id="rec-dia" min="1" max="31" class="form-control form-control-sm" placeholder="Ej: 5" required>
+                                    </div>
+                                    <div class="col-12 col-sm-6 text-right align-self-end">
+                                        <button type="submit" class="btn btn-primary btn-sm btn-block">Agregar fijo</button>
+                                    </div>
+                                </form>
+                                <div id="recurrentes-lista"></div>
+                            </div>
+                        </details>
+
+                        <details class="presupuestos-config mb-3">
+                            <summary class="btn btn-sm btn-outline-info">Accesos rápidos (variables frecuentes)</summary>
+                            <div class="card card-body mt-2">
+                                <p class="small text-muted mb-2">Un botón para precargar el formulario con un gasto típico (Almuerzo, PedidosYa, Nafta). Después en el form ajustás el monto si cambió.</p>
+                                <form id="plantillas-form" class="form-row mb-3">
+                                    <div class="form-group col-12 col-sm-3">
+                                        <label class="small mb-0" for="pl-tipo">Tipo</label>
+                                        <select id="pl-tipo" class="form-control form-control-sm">
+                                            <option value="gasto">Gasto</option>
+                                            <option value="ingreso">Ingreso</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-12 col-sm-5">
+                                        <label class="small mb-0" for="pl-descripcion">Descripción</label>
+                                        <input type="text" id="pl-descripcion" class="form-control form-control-sm" placeholder="Ej: Almuerzo" required>
+                                    </div>
+                                    <div class="form-group col-6 col-sm-4">
+                                        <label class="small mb-0" for="pl-categoria">Categoría</label>
+                                        <select id="pl-categoria" class="form-control form-control-sm"></select>
+                                    </div>
+                                    <div class="form-group col-6 col-sm-6">
+                                        <label class="small mb-0" for="pl-monto">Monto sugerido (opcional)</label>
+                                        <input type="number" id="pl-monto" step="0.01" min="0" class="form-control form-control-sm" placeholder="0 = lo pongo yo cada vez">
+                                    </div>
+                                    <div class="col-12 col-sm-6 text-right align-self-end">
+                                        <button type="submit" class="btn btn-primary btn-sm btn-block">Agregar acceso</button>
+                                    </div>
+                                </form>
+                                <div id="plantillas-lista"></div>
                             </div>
                         </details>
 

@@ -90,4 +90,37 @@ h2 {
 .presupuestos-config:not([open]) summary::before {
     content: '▸ ';
 }
+.accesos-rapidos .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.chip {
+    border-radius: 999px;
+    font-size: 0.85rem;
+    padding: 2px 12px;
+    border: 1px solid;
+}
+.chip-gasto {
+    color: #c82333;
+    border-color: #c82333;
+    background: #fff;
+}
+.chip-gasto:hover {
+    background: #c82333;
+    color: #fff;
+}
+.chip-ingreso {
+    color: #1e7e34;
+    border-color: #1e7e34;
+    background: #fff;
+}
+.chip-ingreso:hover {
+    background: #1e7e34;
+    color: #fff;
+}
+.recurrente.inactivo {
+    opacity: 0.5;
+}
+
 
