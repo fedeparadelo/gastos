@@ -1,5 +1,7 @@
 const STORAGE_KEY = 'gastos:movimientos';
 const STORAGE_KEY_PRESUPUESTOS = 'gastos:presupuestos';
+const STORAGE_KEY_RECURRENTES = 'gastos:recurrentes';
+const STORAGE_KEY_PLANTILLAS  = 'gastos:plantillas';
 
 const CATEGORIAS = {
     ingreso: ['Salario', 'Freelance', 'Inversiones', 'Regalo', 'Otros'],
@@ -38,6 +40,21 @@ const progresoLista        = document.getElementById('progreso-lista');
 const progresoMesLabel     = document.getElementById('progreso-mes-label');
 const presupuestosInputs   = document.getElementById('presupuestos-inputs');
 
+const accesosRapidos       = document.getElementById('accesos-rapidos');
+const recurrentesLista     = document.getElementById('recurrentes-lista');
+const recurrentesForm      = document.getElementById('recurrentes-form');
+const recTipo              = document.getElementById('rec-tipo');
+const recDescripcion       = document.getElementById('rec-descripcion');
+const recMonto             = document.getElementById('rec-monto');
+const recCategoria         = document.getElementById('rec-categoria');
+const recDia               = document.getElementById('rec-dia');
+const plantillasLista      = document.getElementById('plantillas-lista');
+const plantillasForm       = document.getElementById('plantillas-form');
+const plTipo               = document.getElementById('pl-tipo');
+const plDescripcion        = document.getElementById('pl-descripcion');
+const plMonto              = document.getElementById('pl-monto');
+const plCategoria          = document.getElementById('pl-categoria');
+
 
 function validarMovimiento(m) {
     return m
@@ -47,6 +64,35 @@ function validarMovimiento(m) {
         && typeof m.categoria === 'string' && m.categoria.length > 0
         && typeof m.descripcion === 'string'
         && typeof m.fecha === 'string' && FECHA_REGEX.test(m.fecha);
+}
+
+function validarRecurrente(r) {
+    return r
+        && typeof r.id === 'string' && r.id.length > 0
+        && TIPOS_VALIDOS.includes(r.tipo)
+        && typeof r.monto === 'number' && r.monto > 0 && isFinite(r.monto)
+        && typeof r.categoria === 'string' && r.categoria.length > 0
+        && typeof r.descripcion === 'string'
+        && Number.isInteger(r.diaDelMes) && r.diaDelMes >= 1 && r.diaDelMes <= 31
+        && typeof r.activo === 'boolean'
+        && (r.ultimoMesGenerado === null || (typeof r.ultimoMesGenerado === 'string' && /^\d{4}-\d{2}$/.test(r.ultimoMesGenerado)));
+}
+
+function validarPlantilla(p) {
+    return p
+        && typeof p.id === 'string' && p.id.length > 0
+        && TIPOS_VALIDOS.includes(p.tipo)
+        && typeof p.categoria === 'string' && p.categoria.length > 0
+        && typeof p.descripcion === 'string'
+        && (p.monto === 0 || (typeof p.monto === 'number' && p.monto > 0 && isFinite(p.monto)));
+}
+
+function ultimoDiaDelMes(ano, mes) {
+    return new Date(ano, mes, 0).getDate();
+}
+
+function siguienteMes(ano, mes) {
+    return mes === 12 ? [ano + 1, 1] : [ano, mes + 1];
 }
 
 function nuevoId() {
@@ -75,6 +121,8 @@ class Finanzas {
     constructor() {
         this.movimientos = this.cargar();
         this.presupuestos = this.cargarPresupuestos();
+        this.recurrentes = this.cargarRecurrentes();
+        this.plantillas = this.cargarPlantillas();
     }
 
     cargar() {
@@ -133,6 +181,107 @@ class Finanzas {
         return acc;
     }
 
+    cargarRecurrentes() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_RECURRENTES);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(validarRecurrente);
+        } catch (err) { return []; }
+    }
+
+    guardarRecurrentes() {
+        localStorage.setItem(STORAGE_KEY_RECURRENTES, JSON.stringify(this.recurrentes));
+    }
+
+    agregarRecurrente(r) {
+        this.recurrentes.push(r);
+        this.guardarRecurrentes();
+    }
+
+    eliminarRecurrente(id) {
+        this.recurrentes = this.recurrentes.filter(r => r.id !== id);
+        this.guardarRecurrentes();
+    }
+
+    toggleRecurrente(id) {
+        const r = this.recurrentes.find(r => r.id === id);
+        if (r) { r.activo = !r.activo; this.guardarRecurrentes(); }
+    }
+
+    cargarPlantillas() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_PLANTILLAS);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(validarPlantilla);
+        } catch (err) { return []; }
+    }
+
+    guardarPlantillas() {
+        localStorage.setItem(STORAGE_KEY_PLANTILLAS, JSON.stringify(this.plantillas));
+    }
+
+    agregarPlantilla(p) {
+        this.plantillas.push(p);
+        this.guardarPlantillas();
+    }
+
+    eliminarPlantilla(id) {
+        this.plantillas = this.plantillas.filter(p => p.id !== id);
+        this.guardarPlantillas();
+    }
+
+    // Genera los movimientos de los fijos que corresponden desde el último mes
+    // generado hasta hoy. Devuelve la cantidad generada.
+    procesarRecurrentes() {
+        const hoy = fechaHoy();
+        const [hoyAno, hoyMes] = hoy.split('-').map(Number);
+        let generados = 0;
+        let cambiaronRecurrentes = false;
+
+        for (const r of this.recurrentes) {
+            if (!r.activo) continue;
+
+            let ano, mes;
+            if (r.ultimoMesGenerado) {
+                const [a, m] = r.ultimoMesGenerado.split('-').map(Number);
+                [ano, mes] = siguienteMes(a, m);
+            } else {
+                ano = hoyAno;
+                mes = hoyMes;
+            }
+
+            while (ano < hoyAno || (ano === hoyAno && mes <= hoyMes)) {
+                const dia = Math.min(r.diaDelMes, ultimoDiaDelMes(ano, mes));
+                const fecha = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+
+                if (fecha > hoy) break;
+
+                this.movimientos.push({
+                    id: nuevoId(),
+                    tipo: r.tipo,
+                    categoria: r.categoria,
+                    descripcion: r.descripcion,
+                    monto: r.monto,
+                    fecha,
+                    origenRecurrente: r.id
+                });
+                r.ultimoMesGenerado = `${ano}-${String(mes).padStart(2,'0')}`;
+                generados++;
+                cambiaronRecurrentes = true;
+
+                [ano, mes] = siguienteMes(ano, mes);
+            }
+        }
+
+        if (generados > 0) this.guardar();
+        if (cambiaronRecurrentes) this.guardarRecurrentes();
+        return generados;
+    }
+
     nuevoMovimiento(mov) {
         this.movimientos.push(mov);
         this.guardar();
@@ -148,6 +297,34 @@ class Finanzas {
         if (!arr.every(validarMovimiento)) throw new Error('Algún movimiento es inválido');
         this.movimientos = arr;
         this.guardar();
+    }
+
+    reemplazarBundle(bundle) {
+        if (!bundle || typeof bundle !== 'object') throw new Error('Formato inválido');
+        if (!Array.isArray(bundle.movimientos)) throw new Error('Falta el array de movimientos');
+        if (!bundle.movimientos.every(validarMovimiento)) throw new Error('Algún movimiento es inválido');
+
+        const presupuestos = {};
+        if (bundle.presupuestos && typeof bundle.presupuestos === 'object') {
+            for (const cat of CATEGORIAS.gasto) {
+                const v = Number(bundle.presupuestos[cat]);
+                if (v > 0 && isFinite(v)) presupuestos[cat] = v;
+            }
+        }
+        const recurrentes = Array.isArray(bundle.recurrentes)
+            ? bundle.recurrentes.filter(validarRecurrente) : [];
+        const plantillas = Array.isArray(bundle.plantillas)
+            ? bundle.plantillas.filter(validarPlantilla) : [];
+
+        this.movimientos  = bundle.movimientos;
+        this.presupuestos = presupuestos;
+        this.recurrentes  = recurrentes;
+        this.plantillas   = plantillas;
+
+        this.guardar();
+        this.guardarPresupuestos();
+        this.guardarRecurrentes();
+        this.guardarPlantillas();
     }
 
     totales(movs = this.movimientos) {
@@ -332,6 +509,90 @@ class UI {
         }
     }
 
+    renderAccesosRapidos(plantillas) {
+        accesosRapidos.innerHTML = '';
+        if (plantillas.length === 0) return;
+
+        const label = document.createElement('div');
+        label.className = 'small text-muted mb-1';
+        label.textContent = 'Accesos rápidos:';
+        accesosRapidos.appendChild(label);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'chips';
+        for (const p of plantillas) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `btn btn-sm chip chip-${p.tipo}`;
+            btn.dataset.id = p.id;
+            const montoTxt = p.monto > 0 ? ` $${formatearMonto(p.monto)}` : '';
+            btn.textContent = `+ ${p.descripcion}${montoTxt}`;
+            wrap.appendChild(btn);
+        }
+        accesosRapidos.appendChild(wrap);
+    }
+
+    renderRecurrentesLista(recurrentes) {
+        recurrentesLista.innerHTML = '';
+        if (recurrentes.length === 0) {
+            recurrentesLista.innerHTML = '<p class="small text-muted mb-0">Todavía no agregaste movimientos fijos.</p>';
+            return;
+        }
+        const ul = document.createElement('ul');
+        ul.className = 'list-group list-group-flush';
+        for (const r of recurrentes) {
+            const li = document.createElement('li');
+            li.className = `list-group-item px-2 py-2 small recurrente ${r.activo ? '' : 'inactivo'}`;
+            li.dataset.id = r.id;
+            const signo = r.tipo === 'ingreso' ? '+' : '-';
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${escapeHtml(r.descripcion)}</strong>
+                        <span class="text-muted"> · ${escapeHtml(r.categoria)} · día ${r.diaDelMes}</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="mr-2 ${r.tipo === 'ingreso' ? 'text-success' : 'text-danger'}">${signo}$${formatearMonto(r.monto)}</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mr-1 toggle-recurrente">${r.activo ? 'Pausar' : 'Activar'}</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger borrar-recurrente">✕</button>
+                    </div>
+                </div>
+            `;
+            ul.appendChild(li);
+        }
+        recurrentesLista.appendChild(ul);
+    }
+
+    renderPlantillasLista(plantillas) {
+        plantillasLista.innerHTML = '';
+        if (plantillas.length === 0) {
+            plantillasLista.innerHTML = '<p class="small text-muted mb-0">Todavía no agregaste accesos rápidos.</p>';
+            return;
+        }
+        const ul = document.createElement('ul');
+        ul.className = 'list-group list-group-flush';
+        for (const p of plantillas) {
+            const li = document.createElement('li');
+            li.className = 'list-group-item px-2 py-2 small';
+            li.dataset.id = p.id;
+            const montoTxt = p.monto > 0 ? `$${formatearMonto(p.monto)}` : '<em class="text-muted">sin monto fijo</em>';
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${escapeHtml(p.descripcion)}</strong>
+                        <span class="text-muted"> · ${escapeHtml(p.categoria)} · ${p.tipo}</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="mr-2">${montoTxt}</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger borrar-plantilla">✕</button>
+                    </div>
+                </div>
+            `;
+            ul.appendChild(li);
+        }
+        plantillasLista.appendChild(ul);
+    }
+
     limpiarHTML(ul) {
         while (ul.firstChild) ul.removeChild(ul.firstChild);
     }
@@ -480,7 +741,13 @@ function resetearFiltros() {
 }
 
 function exportarJSON() {
-    const data = JSON.stringify(finanzas.movimientos, null, 2);
+    const data = JSON.stringify({
+        version: 2,
+        movimientos: finanzas.movimientos,
+        presupuestos: finanzas.presupuestos,
+        recurrentes: finanzas.recurrentes,
+        plantillas: finanzas.plantillas
+    }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -497,15 +764,20 @@ function importarJSON(file) {
     reader.onload = () => {
         try {
             const parsed = JSON.parse(reader.result);
-            if (!Array.isArray(parsed)) throw new Error('El JSON debe ser un array');
-            if (!parsed.every(validarMovimiento)) throw new Error('Algún movimiento es inválido');
 
-            const ok = confirm(`Esto reemplazará tus movimientos actuales (${finanzas.movimientos.length}) por los del archivo (${parsed.length}). ¿Continuar?`);
-            if (!ok) return;
+            if (Array.isArray(parsed)) {
+                if (!parsed.every(validarMovimiento)) throw new Error('Algún movimiento es inválido');
+                const ok = confirm(`Esto reemplazará tus movimientos actuales (${finanzas.movimientos.length}) por los del archivo (${parsed.length}). ¿Continuar?`);
+                if (!ok) return;
+                finanzas.reemplazarTodo(parsed);
+            } else {
+                const nMov = Array.isArray(parsed.movimientos) ? parsed.movimientos.length : 0;
+                const ok = confirm(`Esto reemplazará tus datos actuales (movimientos, topes, fijos y accesos) por los del archivo (${nMov} movimientos). ¿Continuar?`);
+                if (!ok) return;
+                finanzas.reemplazarBundle(parsed);
+            }
 
-            finanzas.reemplazarTodo(parsed);
-            refrescarFiltroCategorias();
-            refrescarVista();
+            refrescarTodo();
             ui.imprimirAlerta('Datos importados');
         } catch (err) {
             console.error(err);
@@ -514,6 +786,18 @@ function importarJSON(file) {
     };
     reader.onerror = () => ui.imprimirAlerta('No se pudo leer el archivo', 'error');
     reader.readAsText(file);
+}
+
+function refrescarTodo() {
+    ui.poblarCategorias(inputCategoria, tipoSeleccionado());
+    ui.poblarCategorias(recCategoria, recTipo.value);
+    ui.poblarCategorias(plCategoria, plTipo.value);
+    ui.renderPresupuestosInputs(finanzas.presupuestos);
+    ui.renderAccesosRapidos(finanzas.plantillas);
+    ui.renderRecurrentesLista(finanzas.recurrentes);
+    ui.renderPlantillasLista(finanzas.plantillas);
+    refrescarFiltroCategorias();
+    refrescarVista();
 }
 
 
@@ -525,13 +809,117 @@ function onPresupuestoInput(e) {
     refrescarProgreso();
 }
 
+function agregarRecurrente(e) {
+    e.preventDefault();
+    const tipo = recTipo.value;
+    const descripcion = recDescripcion.value.trim();
+    const monto = Number(recMonto.value);
+    const categoria = recCategoria.value;
+    const diaDelMes = parseInt(recDia.value, 10);
+
+    if (!descripcion) return ui.imprimirAlerta('Ponele una descripción', 'error');
+    if (!monto || monto <= 0) return ui.imprimirAlerta('El monto debe ser mayor a 0', 'error');
+    if (!categoria) return ui.imprimirAlerta('Elegí una categoría', 'error');
+    if (!Number.isInteger(diaDelMes) || diaDelMes < 1 || diaDelMes > 31) {
+        return ui.imprimirAlerta('El día debe ser entre 1 y 31', 'error');
+    }
+
+    const r = { id: nuevoId(), tipo, descripcion, monto, categoria, diaDelMes, activo: true, ultimoMesGenerado: null };
+    finanzas.agregarRecurrente(r);
+    const generados = finanzas.procesarRecurrentes();
+    ui.renderRecurrentesLista(finanzas.recurrentes);
+    refrescarFiltroCategorias();
+    refrescarVista();
+    recurrentesForm.reset();
+    ui.poblarCategorias(recCategoria, recTipo.value);
+
+    ui.imprimirAlerta(generados > 0 ? `Fijo agregado. Se generó el movimiento de este mes.` : 'Fijo agregado. Se va a generar solo cuando llegue el día.');
+}
+
+function onRecurrentesClick(e) {
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    const id = li.dataset.id;
+    if (e.target.classList.contains('borrar-recurrente')) {
+        if (!confirm('¿Borrar este fijo? Los movimientos ya generados se mantienen.')) return;
+        finanzas.eliminarRecurrente(id);
+        ui.renderRecurrentesLista(finanzas.recurrentes);
+    } else if (e.target.classList.contains('toggle-recurrente')) {
+        finanzas.toggleRecurrente(id);
+        finanzas.procesarRecurrentes();
+        ui.renderRecurrentesLista(finanzas.recurrentes);
+        refrescarFiltroCategorias();
+        refrescarVista();
+    }
+}
+
+function agregarPlantilla(e) {
+    e.preventDefault();
+    const tipo = plTipo.value;
+    const descripcion = plDescripcion.value.trim();
+    const montoRaw = Number(plMonto.value);
+    const monto = montoRaw > 0 ? montoRaw : 0;
+    const categoria = plCategoria.value;
+
+    if (!descripcion) return ui.imprimirAlerta('Ponele una descripción', 'error');
+    if (!categoria) return ui.imprimirAlerta('Elegí una categoría', 'error');
+
+    finanzas.agregarPlantilla({ id: nuevoId(), tipo, descripcion, monto, categoria });
+    ui.renderPlantillasLista(finanzas.plantillas);
+    ui.renderAccesosRapidos(finanzas.plantillas);
+    plantillasForm.reset();
+    ui.poblarCategorias(plCategoria, plTipo.value);
+    ui.imprimirAlerta('Acceso rápido agregado');
+}
+
+function onPlantillasClick(e) {
+    if (!e.target.classList.contains('borrar-plantilla')) return;
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    finanzas.eliminarPlantilla(li.dataset.id);
+    ui.renderPlantillasLista(finanzas.plantillas);
+    ui.renderAccesosRapidos(finanzas.plantillas);
+}
+
+function usarPlantilla(id) {
+    const p = finanzas.plantillas.find(x => x.id === id);
+    if (!p) return;
+
+    radiosTipo.forEach(r => {
+        const label = r.closest('label');
+        if (r.value === p.tipo) {
+            r.checked = true;
+            if (label) label.classList.add('active');
+        } else {
+            r.checked = false;
+            if (label) label.classList.remove('active');
+        }
+    });
+
+    ui.poblarCategorias(inputCategoria, p.tipo);
+    inputCategoria.value = p.categoria;
+    inputDescripcion.value = p.descripcion;
+    inputMonto.value = p.monto > 0 ? p.monto : '';
+    inputFecha.value = fechaHoy();
+
+    inputMonto.focus();
+    inputMonto.select();
+}
+
+function onAccesoRapidoClick(e) {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    usarPlantilla(chip.dataset.id);
+}
+
 function eventListeners() {
     document.addEventListener('DOMContentLoaded', () => {
         inputFecha.value = fechaHoy();
-        ui.poblarCategorias(inputCategoria, tipoSeleccionado());
-        ui.renderPresupuestosInputs(finanzas.presupuestos);
-        refrescarFiltroCategorias();
-        refrescarVista();
+        const generados = finanzas.procesarRecurrentes();
+        refrescarTodo();
+        if (generados > 0) {
+            ui.imprimirAlerta(`Se generaron ${generados} movimiento${generados > 1 ? 's' : ''} fijo${generados > 1 ? 's' : ''} automáticamente`);
+        }
     });
 
     presupuestosInputs.addEventListener('input', onPresupuestoInput);
@@ -540,9 +928,17 @@ function eventListeners() {
     radiosTipo.forEach(r => r.addEventListener('change', () => {
         ui.poblarCategorias(inputCategoria, tipoSeleccionado());
     }));
+    recTipo.addEventListener('change', () => ui.poblarCategorias(recCategoria, recTipo.value));
+    plTipo.addEventListener('change', () => ui.poblarCategorias(plCategoria, plTipo.value));
 
     formulario.addEventListener('submit', agregarMovimiento);
     listadoMovimientos.addEventListener('click', eliminarMovimiento);
+
+    recurrentesForm.addEventListener('submit', agregarRecurrente);
+    recurrentesLista.addEventListener('click', onRecurrentesClick);
+    plantillasForm.addEventListener('submit', agregarPlantilla);
+    plantillasLista.addEventListener('click', onPlantillasClick);
+    accesosRapidos.addEventListener('click', onAccesoRapidoClick);
 
     filtrosContainer.addEventListener('change', aplicarFiltros);
     filtrosContainer.addEventListener('input', aplicarFiltros);
